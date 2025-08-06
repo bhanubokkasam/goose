@@ -15,6 +15,7 @@ pub mod scheduler;
 pub mod scheduler_factory;
 pub mod scheduler_trait;
 pub mod session;
+pub mod telemetry_logger;
 pub mod temporal_scheduler;
 pub mod token_counter;
 pub mod tool_monitor;

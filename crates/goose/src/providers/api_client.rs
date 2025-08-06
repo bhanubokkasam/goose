@@ -6,6 +6,7 @@ use reqwest::{
 };
 use serde_json::Value;
 use std::fmt;
+use std::path::PathBuf;
 use std::time::Duration;
 
 pub struct ApiClient {
@@ -172,6 +173,21 @@ impl<'a> ApiRequestBuilder<'a> {
     }
 
     pub async fn response_post(self, payload: &Value) -> Result<Response> {
+        // Log the request to telemetry logger if enabled
+        if let Some(logger) = crate::telemetry_logger::get_telemetry_logger().await {
+            let entry = crate::telemetry_logger::TelemetryLogEntry {
+                timestamp: chrono::Utc::now(),
+                request_type: "api_post".to_string(),
+                provider: self.client.host.clone(),
+                model: "unknown".to_string(), // We don't have model info at this level
+                request: payload.clone(),
+                response: None,
+                error: None,
+                duration_ms: None,
+            };
+            let _ = logger.log(entry).await;
+        }
+
         let request = self.send_request(|url, client| client.post(url)).await?;
         Ok(request.json(payload).send().await?)
     }

@@ -1,8 +1,6 @@
 use anyhow::Result;
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::fs::OpenOptions;
-use std::io::Write;
 
 use async_stream::try_stream;
 use futures::stream::StreamExt;
@@ -20,15 +18,20 @@ use rmcp::model::Tool;
 
 use super::super::agents::Agent;
 
-// Simple logging helper
-fn log_wait_event(event: &str) {
-    if let Ok(mut file) = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open("/tmp/goose-waiting.log")
-    {
-        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S.%3f");
-        let _ = writeln!(file, "{} - {}", timestamp, event);
+// Helper to log wait events using the TelemetryLogger
+async fn log_wait_event(event: &str) {
+    if let Some(logger) = crate::telemetry_logger::get_telemetry_logger().await {
+        let entry = crate::telemetry_logger::TelemetryLogEntry {
+            timestamp: chrono::Utc::now(),
+            request_type: "wait_event".to_string(),
+            provider: "agent".to_string(),
+            model: "n/a".to_string(),
+            request: serde_json::json!({ "event": event }),
+            response: None,
+            error: None,
+            duration_ms: None,
+        };
+        let _ = logger.log(entry).await;
     }
 }
 
@@ -145,11 +148,11 @@ impl Agent {
         };
 
         // Call the provider to get a response
-        log_wait_event("WAITING_LLM_START");
+        log_wait_event("WAITING_LLM_START").await;
         let (mut response, usage) = provider
             .complete(system_prompt, &messages_for_provider, tools)
             .await?;
-        log_wait_event("WAITING_LLM_END");
+        log_wait_event("WAITING_LLM_END").await;
 
         crate::providers::base::set_current_model(&usage.model);
 
@@ -185,18 +188,18 @@ impl Agent {
         let provider = provider.clone();
 
         let mut stream = if provider.supports_streaming() {
-            log_wait_event("WAITING_LLM_STREAM_START");
+            log_wait_event("WAITING_LLM_STREAM_START").await;
             let stream = provider
                 .stream(system_prompt.as_str(), &messages_for_provider, &tools)
                 .await?;
-            log_wait_event("WAITING_LLM_STREAM_CONNECTED");
+            log_wait_event("WAITING_LLM_STREAM_CONNECTED").await;
             stream
         } else {
-            log_wait_event("WAITING_LLM_START");
+            log_wait_event("WAITING_LLM_START").await;
             let (message, usage) = provider
                 .complete(system_prompt.as_str(), &messages_for_provider, &tools)
                 .await?;
-            log_wait_event("WAITING_LLM_END");
+            log_wait_event("WAITING_LLM_END").await;
             stream_from_single_message(message, usage)
         };
 
