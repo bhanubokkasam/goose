@@ -193,6 +193,11 @@ async fn reply_handler(
         .session_id
         .unwrap_or_else(session::generate_session_id);
 
+    // Initialize telemetry logger for this session
+    if let Err(e) = goose::telemetry_logger::init_telemetry_logger_for_session(session_id.clone()).await {
+        tracing::warn!("Failed to initialize telemetry logger: {}", e);
+    }
+
     let task_cancel = cancel_token.clone();
     let task_tx = tx.clone();
 

@@ -27,17 +27,17 @@ pub struct TelemetryLogger {
 }
 
 impl TelemetryLogger {
-    /// Create a new telemetry logger
-    pub fn new() -> Result<Self> {
-        let log_dir = dirs::data_local_dir()
-            .ok_or_else(|| anyhow::anyhow!("Could not determine local data directory"))?
-            .join("goose")
-            .join("logs");
+    /// Create a new telemetry logger for a specific session
+    pub fn new_for_session(session_id: &str) -> Result<Self> {
+        // Use the same directory structure as session files
+        let log_dir = crate::session::ensure_session_dir()?
+            .join("telemetry");
 
-        // Create the logs directory if it doesn't exist
+        // Create the telemetry subdirectory if it doesn't exist
         fs::create_dir_all(&log_dir)?;
 
-        let log_file_path = log_dir.join("telemetry.jsonl");
+        // Create a telemetry file with the same name as the session
+        let log_file_path = log_dir.join(format!("{}.jsonl", session_id));
 
         Ok(Self {
             log_file_path,
@@ -80,31 +80,83 @@ impl TelemetryLogger {
     }
 }
 
-// Global singleton for the telemetry logger
+// Global map of session-specific telemetry loggers
 lazy_static::lazy_static! {
-    static ref TELEMETRY_LOGGER: Arc<Mutex<Option<TelemetryLogger>>> = Arc::new(Mutex::new(None));
+    static ref TELEMETRY_LOGGERS: Arc<Mutex<std::collections::HashMap<String, TelemetryLogger>>> = Arc::new(Mutex::new(std::collections::HashMap::new()));
+    static ref CURRENT_SESSION_ID: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
 }
 
-/// Initialize the global telemetry logger
-pub async fn init_telemetry_logger() -> Result<()> {
-    let mut logger = TELEMETRY_LOGGER.lock().await;
-    *logger = Some(TelemetryLogger::new()?);
+/// Initialize a telemetry logger for a specific session
+pub async fn init_telemetry_logger_for_session(session_id: String) -> Result<()> {
+    let mut loggers = TELEMETRY_LOGGERS.lock().await;
+    let logger = TelemetryLogger::new_for_session(&session_id)?;
+    loggers.insert(session_id.clone(), logger);
+    
+    // Set this as the current session
+    let mut current = CURRENT_SESSION_ID.lock().await;
+    *current = Some(session_id);
+    
     Ok(())
 }
 
-/// Get the global telemetry logger
+/// Set the current session ID for telemetry logging
+pub async fn set_current_session_id(session_id: Option<String>) {
+    let mut current = CURRENT_SESSION_ID.lock().await;
+    *current = session_id;
+}
+
+/// Get the telemetry logger for the current session
 pub async fn get_telemetry_logger() -> Option<TelemetryLogger> {
-    let logger = TELEMETRY_LOGGER.lock().await;
-    logger.as_ref().map(|l| TelemetryLogger {
+    let current_session = CURRENT_SESSION_ID.lock().await;
+    if let Some(session_id) = current_session.as_ref() {
+        let loggers = TELEMETRY_LOGGERS.lock().await;
+        loggers.get(session_id).map(|l| TelemetryLogger {
+            log_file_path: l.log_file_path.clone(),
+            file_mutex: l.file_mutex.clone(),
+        })
+    } else {
+        None
+    }
+}
+
+/// Get the telemetry logger for a specific session
+pub async fn get_telemetry_logger_for_session(session_id: &str) -> Option<TelemetryLogger> {
+    let loggers = TELEMETRY_LOGGERS.lock().await;
+    loggers.get(session_id).map(|l| TelemetryLogger {
         log_file_path: l.log_file_path.clone(),
         file_mutex: l.file_mutex.clone(),
     })
 }
 
-/// Log a telemetry event using the global logger
+/// Log a telemetry event using the current session's logger
 pub async fn log_telemetry_event(entry: TelemetryLogEntry) -> Result<()> {
     if let Some(logger) = get_telemetry_logger().await {
         logger.log(entry).await?;
     }
     Ok(())
+}
+
+/// List all telemetry files
+pub fn list_telemetry_files() -> Result<Vec<(String, PathBuf)>> {
+    let telemetry_dir = crate::session::ensure_session_dir()?.join("telemetry");
+    
+    if !telemetry_dir.exists() {
+        return Ok(Vec::new());
+    }
+    
+    let entries = fs::read_dir(&telemetry_dir)?
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            let path = entry.path();
+            
+            if path.extension().is_some_and(|ext| ext == "jsonl") {
+                let name = path.file_stem()?.to_string_lossy().to_string();
+                Some((name, path))
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    
+    Ok(entries)
 }

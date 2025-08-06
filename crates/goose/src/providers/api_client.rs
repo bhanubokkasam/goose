@@ -6,7 +6,6 @@ use reqwest::{
 };
 use serde_json::Value;
 use std::fmt;
-use std::path::PathBuf;
 use std::time::Duration;
 
 pub struct ApiClient {
