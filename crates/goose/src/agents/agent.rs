@@ -2,6 +2,8 @@ use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::fs::OpenOptions;
+use std::io::Write;
 
 use anyhow::{anyhow, Result};
 use futures::stream::BoxStream;
@@ -59,6 +61,18 @@ use crate::agents::subagent_task_config::TaskConfig;
 use crate::conversation::message::{Message, ToolRequest};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
+
+// Simple logging helper
+fn log_wait_event(event: &str) {
+    if let Ok(mut file) = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("/tmp/goose-waiting.log")
+    {
+        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S.%3f");
+        let _ = writeln!(file, "{} - {}", timestamp, event);
+    }
+}
 
 /// Context needed for the reply function
 pub struct ReplyContext {
@@ -418,6 +432,8 @@ impl Agent {
             };
         }
 
+        log_wait_event(&format!("WAITING_TOOL_START: {}", tool_call.name));
+        
         let extension_manager = self.extension_manager.read().await;
         let sub_recipe_manager = self.sub_recipe_manager.lock().await;
         let result: ToolCallResult = if sub_recipe_manager.is_sub_recipe_tool(&tool_call.name) {
@@ -487,6 +503,8 @@ impl Agent {
                 ToolCallResult::from(Err(ToolError::ExecutionError(e.to_string())))
             })
         };
+
+        log_wait_event(&format!("WAITING_TOOL_END: {}", tool_call.name));
 
         (
             request_id,
