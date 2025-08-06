@@ -406,7 +406,10 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     // Initialize telemetry logger for this session if we have a session file
     if let Some(ref file) = session_file {
         if let Some(session_id) = file.file_stem().and_then(|s| s.to_str()) {
-            if let Err(e) = goose::telemetry_logger::init_telemetry_logger_for_session(session_id.to_string()).await {
+            if let Err(e) =
+                goose::telemetry_logger::init_telemetry_logger_for_session(session_id.to_string())
+                    .await
+            {
                 tracing::warn!("Failed to initialize telemetry logger: {}", e);
             }
         }

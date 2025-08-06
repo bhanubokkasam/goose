@@ -1170,8 +1170,14 @@ async fn run_scheduled_job_internal(
     let session_id_for_return = session::generate_session_id();
 
     // Initialize telemetry logger for this scheduled session
-    if let Err(e) = crate::telemetry_logger::init_telemetry_logger_for_session(session_id_for_return.clone()).await {
-        tracing::warn!("Failed to initialize telemetry logger for scheduled job: {}", e);
+    if let Err(e) =
+        crate::telemetry_logger::init_telemetry_logger_for_session(session_id_for_return.clone())
+            .await
+    {
+        tracing::warn!(
+            "Failed to initialize telemetry logger for scheduled job: {}",
+            e
+        );
     }
 
     // Update the job with the session ID if we have access to the jobs arc
