@@ -1,8 +1,6 @@
 use anyhow::Result;
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::fs::OpenOptions;
-use std::io::Write;
 
 use async_stream::try_stream;
 use futures::stream::StreamExt;
@@ -11,6 +9,7 @@ use super::super::agents::Agent;
 use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
+use crate::debug_logger::log_debug_event;
 use crate::providers::base::{stream_from_single_message, MessageStream, Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;
 use crate::providers::toolshim::{
@@ -19,20 +18,6 @@ use crate::providers::toolshim::{
 };
 use crate::session;
 use rmcp::model::Tool;
-
-use super::super::agents::Agent;
-
-// Simple logging helper
-fn log_wait_event(event: &str) {
-    if let Ok(mut file) = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open("/tmp/goose-waiting.log")
-    {
-        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S.%3f");
-        let _ = writeln!(file, "{} - {}", timestamp, event);
-    }
-}
 
 async fn toolshim_postprocess(
     response: Message,
@@ -147,11 +132,11 @@ impl Agent {
         };
 
         // Call the provider to get a response
-        log_wait_event("WAITING_LLM_START");
+        log_debug_event("WAITING_LLM_START");
         let (mut response, usage) = provider
             .complete(system_prompt, messages_for_provider.messages(), tools)
             .await?;
-        log_wait_event("WAITING_LLM_END");
+        log_debug_event("WAITING_LLM_END");
 
         crate::providers::base::set_current_model(&usage.model);
 
@@ -187,21 +172,18 @@ impl Agent {
         let provider = provider.clone();
 
         let mut stream = if provider.supports_streaming() {
-            provider
+            log_debug_event("WAITING_LLM_STREAM_START");
+            let stream = provider
                 .stream(
                     system_prompt.as_str(),
                     messages_for_provider.messages(),
                     &tools,
                 )
-                .await?
-            log_wait_event("WAITING_LLM_STREAM_START");
-            let stream = provider
-                .stream(system_prompt.as_str(), &messages_for_provider, &tools)
                 .await?;
-            log_wait_event("WAITING_LLM_STREAM_CONNECTED");
+            log_debug_event("WAITING_LLM_STREAM_CONNECTED");
             stream
         } else {
-            log_wait_event("WAITING_LLM_START");
+            log_debug_event("WAITING_LLM_START");
             let (message, usage) = provider
                 .complete(
                     system_prompt.as_str(),
@@ -209,7 +191,7 @@ impl Agent {
                     &tools,
                 )
                 .await?;
-            log_wait_event("WAITING_LLM_END");
+            log_debug_event("WAITING_LLM_END");
             stream_from_single_message(message, usage)
         };
 
