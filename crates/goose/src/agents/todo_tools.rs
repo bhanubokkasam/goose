@@ -86,7 +86,11 @@ pub fn todo_write_tool() -> Tool {
 }
 
 #[cfg(test)]
-mod tests {
+#[path = "todo_tools_tests.rs"]
+mod tests;
+
+#[cfg(test)]
+mod unit_tests {
     use super::*;
 
     #[test]

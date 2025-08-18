@@ -290,7 +290,7 @@ impl Agent {
                     || tool_call.name == TODO_WRITE_TOOL_NAME
                 {
                     // Handle TODO tools with session context
-                    self.dispatch_todo_tool_with_session(tool_call, request.id.clone(), session)
+                    self.dispatch_todo_tool_with_session_internal(tool_call, request.id.clone(), session)
                         .await
                 } else {
                     self.dispatch_tool_call(tool_call, request.id.clone(), cancel_token.clone())
@@ -368,7 +368,18 @@ impl Agent {
     }
 
     /// Dispatch TODO tool calls with session context
-    async fn dispatch_todo_tool_with_session(
+    #[cfg(test)]
+    pub async fn dispatch_todo_tool_with_session(
+        &self,
+        tool_call: mcp_core::tool::ToolCall,
+        request_id: String,
+        session: &Option<SessionConfig>,
+    ) -> (String, Result<ToolCallResult, ErrorData>) {
+        self.dispatch_todo_tool_with_session_internal(tool_call, request_id, session).await
+    }
+
+    #[allow(clippy::too_many_lines)]
+    async fn dispatch_todo_tool_with_session_internal(
         &self,
         tool_call: mcp_core::tool::ToolCall,
         request_id: String,

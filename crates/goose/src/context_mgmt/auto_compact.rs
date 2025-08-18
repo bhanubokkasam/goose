@@ -442,7 +442,7 @@ mod tests {
         let mock_provider = Arc::new(MockProvider {
             model_config: ModelConfig::new("test-model")
                 .unwrap()
-                .with_context_limit(Some(30_000)), // Smaller context limit to make threshold easier to hit
+                .with_context_limit(Some(10_000)), // Lower context limit to make threshold easier to hit
         });
 
         let agent = Agent::new();
@@ -450,15 +450,26 @@ mod tests {
 
         // Create enough messages to trigger compaction with low threshold
         let mut messages = Vec::new();
-        // With 30k context limit, after overhead we have ~27k usable tokens
-        // 10% of 27k = 2.7k tokens, so we need messages that exceed that
-        for i in 0..200 {
+        // With 10k context limit, 10% is 1k tokens, so we need messages that exceed that
+        // Each message needs to be substantial to generate enough tokens
+        for i in 0..100 {
             messages.push(create_test_message(&format!(
-                "Message {} with enough content to ensure we exceed 10% of the context limit. \
-                 Adding more content to increase token count substantially. This message contains \
-                 multiple sentences to increase the token count. We need to ensure that our total \
-                 token usage exceeds 10% of the available context limit after accounting for \
-                 system prompt and tools overhead.",
+                "Message {} with significantly more content to ensure we exceed 10% of the context limit. \
+                 This is a very long message with lots of text to increase the token count substantially. \
+                 We need to make sure that our total token usage exceeds 10% of the available context \
+                 limit after accounting for system prompt and tools overhead. Lorem ipsum dolor sit amet, \
+                 consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna \
+                 aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut \
+                 aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate \
+                 velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat \
+                 non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. \
+                 Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque \
+                 laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi \
+                 architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas \
+                 sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione \
+                 voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit \
+                 amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut \
+                 labore et dolore magnam aliquam quaerat voluptatem.",
                 i
             )));
         }
