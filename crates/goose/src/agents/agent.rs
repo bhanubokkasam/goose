@@ -152,15 +152,6 @@ where
 }
 
 impl Agent {
-    const DEFAULT_TODO_MAX_CHARS: usize = 50_000;
-
-    fn get_todo_max_chars() -> usize {
-        std::env::var("GOOSE_TODO_MAX_CHARS")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(Self::DEFAULT_TODO_MAX_CHARS)
-    }
-
     pub fn new() -> Self {
         // Create channels with buffer size 32 (adjust if needed)
         let (confirm_tx, confirm_rx) = mpsc::channel(32);
@@ -282,8 +273,6 @@ impl Agent {
             regular_tools,
         }
     }
-
-
 
     async fn handle_approved_and_denied_tools_with_session(
         &self,
@@ -430,7 +419,10 @@ impl Agent {
 
             // Character limit validation
             let char_count = content.chars().count();
-            let max_chars = Self::get_todo_max_chars();
+            let max_chars = std::env::var("GOOSE_TODO_MAX_CHARS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(50_000);
 
             // Simple validation - reject if over limit (0 means unlimited)
             if max_chars > 0 && char_count > max_chars {
