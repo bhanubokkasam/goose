@@ -85,8 +85,6 @@ pub fn todo_write_tool() -> Tool {
     })
 }
 
-
-
 #[cfg(test)]
 mod unit_tests {
     use super::*;
