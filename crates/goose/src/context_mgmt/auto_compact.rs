@@ -268,6 +268,7 @@ mod tests {
             accumulated_total_tokens: Some(100),
             accumulated_input_tokens: Some(50),
             accumulated_output_tokens: Some(50),
+            todo_content: None,
         }
     }
 
