@@ -53,7 +53,7 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
             {
               type: 'compactionMarker',
               msg: isManual
-                ? 'Compacting conversation as requested...'
+                ? 'Compacting conversation...'
                 : 'Context limit reached. Compacting conversation...',
             },
           ],
@@ -88,7 +88,7 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
             content: [
               {
                 type: 'compactionMarker',
-                msg: 'Conversation compacted: Summary prepared to continue',
+                msg: 'Conversation compacted. Continuing from summary',
               },
             ],
           };
