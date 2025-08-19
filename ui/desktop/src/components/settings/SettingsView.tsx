@@ -2,12 +2,12 @@ import { ScrollArea } from '../ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import type { View, ViewOptions } from '../../App';
 import ModelsSection from './models/ModelsSection';
-import SessionSharingSection from './sessions/SessionSharingSection';
+
 import AppSettingsSection from './app/AppSettingsSection';
 import ConfigSettings from './config/ConfigSettings';
 import { ExtensionConfig } from '../../api';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
-import { Bot, Share2, Monitor, MessageSquare } from 'lucide-react';
+import { Bot, Monitor, MessageSquare } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import ChatSettingsSection from './chat/ChatSettingsSection';
 import { CONFIGURATION_ENABLED } from '../../updates';
@@ -93,14 +93,7 @@ export default function SettingsView({
                     <MessageSquare className="h-4 w-4" />
                     Chat
                   </TabsTrigger>
-                  <TabsTrigger
-                    value="sharing"
-                    className="flex gap-2"
-                    data-testid="settings-sharing-tab"
-                  >
-                    <Share2 className="h-4 w-4" />
-                    Session
-                  </TabsTrigger>
+
                   <TabsTrigger value="app" className="flex gap-2" data-testid="settings-app-tab">
                     <Monitor className="h-4 w-4" />
                     App
@@ -123,12 +116,7 @@ export default function SettingsView({
                   <ChatSettingsSection />
                 </TabsContent>
 
-                <TabsContent
-                  value="sharing"
-                  className="mt-0 focus-visible:outline-none focus-visible:ring-0"
-                >
-                  <SessionSharingSection />
-                </TabsContent>
+
 
                 <TabsContent
                   value="app"
