@@ -11,7 +11,7 @@ import {
 } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
-import { useChatContextManager } from './ChatContextManager';
+import { useContextManager } from './ContextManager';
 import { Message } from '../../types/message';
 
 interface ManualCompactButtonProps {
@@ -25,7 +25,7 @@ export const ManualCompactButton: React.FC<ManualCompactButtonProps> = ({
   isLoading = false,
   setMessages,
 }) => {
-  const { handleManualCompaction, isLoadingCompaction } = useChatContextManager();
+  const { handleManualCompaction, isCompacting } = useContextManager();
 
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
 
@@ -57,17 +57,17 @@ export const ManualCompactButton: React.FC<ManualCompactButtonProps> = ({
               type="button"
               className={cn(
                 'flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors',
-                (isLoadingCompaction || isLoading) &&
+                (isCompacting || isLoading) &&
                   'cursor-not-allowed text-text-default/30 hover:text-text-default/30 opacity-50'
               )}
               onClick={handleClick}
-              disabled={isLoadingCompaction || isLoading}
+              disabled={isCompacting || isLoading}
             >
               <ScrollText size={16} />
             </button>
           </TooltipTrigger>
           <TooltipContent>
-            {isLoadingCompaction ? 'Compacting conversation...' : 'Compact conversation context'}
+            {isCompacting ? 'Compacting conversation...' : 'Compact conversation context'}
           </TooltipContent>
         </Tooltip>
       </div>

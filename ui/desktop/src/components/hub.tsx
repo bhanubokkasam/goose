@@ -26,7 +26,8 @@ import { SessionInsights } from './sessions/SessionsInsights';
 import ChatInput from './ChatInput';
 import { generateSessionId } from '../sessions';
 import { ChatState } from '../types/chatState';
-import { ChatContextManagerProvider } from './context_management/ChatContextManager';
+import { ChatProvider } from '../contexts/ChatContext';
+import { ContextManagerProvider } from './context_management/ContextManager';
 import 'react-toastify/dist/ReactToastify.css';
 
 import { ChatType } from '../types/chat';
@@ -81,34 +82,46 @@ export default function Hub({
     e.preventDefault();
   };
 
+  // Create a dummy chat for the provider
+  const dummyChat: ChatType = {
+    id: 'hub',
+    title: 'Hub',
+    messages: [],
+    messageHistoryIndex: 0,
+    recipeConfig: null,
+    recipeParameters: null,
+  };
+
   return (
-    <ChatContextManagerProvider>
-      <div className="flex flex-col h-full bg-background-muted">
-        <div className="flex-1 flex flex-col mb-0.5">
-          <SessionInsights />
+    <ChatProvider chat={dummyChat} setChat={() => {}} contextKey="hub">
+      <ContextManagerProvider>
+        <div className="flex flex-col h-full bg-background-muted">
+          <div className="flex-1 flex flex-col mb-0.5">
+            <SessionInsights />
+          </div>
+
+          <ChatInput
+            handleSubmit={handleSubmit}
+            chatState={ChatState.Idle}
+            onStop={() => {}}
+            commandHistory={[]}
+            initialValue=""
+            setView={setView}
+            numTokens={0}
+            inputTokens={0}
+            outputTokens={0}
+            droppedFiles={[]}
+            onFilesProcessed={() => {}}
+            messages={[]}
+            setMessages={() => {}}
+            disableAnimation={false}
+            sessionCosts={undefined}
+            setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+          />
+
+          {showGame && <FlappyGoose onClose={() => setShowGame(false)} />}
         </div>
-
-        <ChatInput
-          handleSubmit={handleSubmit}
-          chatState={ChatState.Idle}
-          onStop={() => {}}
-          commandHistory={[]}
-          initialValue=""
-          setView={setView}
-          numTokens={0}
-          inputTokens={0}
-          outputTokens={0}
-          droppedFiles={[]}
-          onFilesProcessed={() => {}}
-          messages={[]}
-          setMessages={() => {}}
-          disableAnimation={false}
-          sessionCosts={undefined}
-          setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-        />
-
-        {showGame && <FlappyGoose onClose={() => setShowGame(false)} />}
-      </div>
-    </ChatContextManagerProvider>
+      </ContextManagerProvider>
+    </ChatProvider>
   );
 }

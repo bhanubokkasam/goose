@@ -28,7 +28,8 @@ import {
 } from '../ui/dialog';
 import ProgressiveMessageList from '../ProgressiveMessageList';
 import { SearchView } from '../conversation/SearchView';
-import { ChatContextManagerProvider } from '../context_management/ChatContextManager';
+import { ChatProvider } from '../../contexts/ChatContext';
+import { ContextManagerProvider } from '../context_management/ContextManager';
 import { Message } from '../../types/message';
 import BackButton from '../ui/BackButton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
@@ -86,6 +87,16 @@ const SessionMessages: React.FC<{
   // Filter messages for display (same as BaseChat)
   const filteredMessages = filterMessagesForDisplay(messages);
 
+  // Create a dummy chat for the provider
+  const dummyChat = {
+    id: 'session-preview',
+    title: 'Session Preview',
+    messages: [],
+    messageHistoryIndex: 0,
+    recipeConfig: null,
+    recipeParameters: null,
+  };
+
   return (
     <ScrollArea className="h-full w-full">
       <div className="pb-24 pt-8">
@@ -106,29 +117,34 @@ const SessionMessages: React.FC<{
               </Button>
             </div>
           ) : filteredMessages?.length > 0 ? (
-            <ChatContextManagerProvider>
-              <div className="max-w-4xl mx-auto w-full">
-                <SearchView>
-                  <ProgressiveMessageList
-                    messages={filteredMessages}
-                    chat={{
-                      id: 'session-preview',
-                      messageHistoryIndex: filteredMessages.length,
-                    }}
-                    toolCallNotifications={new Map()}
-                    append={() => {}} // Read-only for session history
-                    appendMessage={(newMessage) => {
-                      // Read-only - do nothing
-                      console.log('appendMessage called in read-only session history:', newMessage);
-                    }}
-                    isUserMessage={isUserMessage} // Use the same function as BaseChat
-                    batchSize={15} // Same as BaseChat default
-                    batchDelay={30} // Same as BaseChat default
-                    showLoadingThreshold={30} // Same as BaseChat default
-                  />
-                </SearchView>
-              </div>
-            </ChatContextManagerProvider>
+            <ChatProvider chat={dummyChat} setChat={() => {}} contextKey="session-history">
+              <ContextManagerProvider>
+                <div className="max-w-4xl mx-auto w-full">
+                  <SearchView>
+                    <ProgressiveMessageList
+                      messages={filteredMessages}
+                      chat={{
+                        id: 'session-preview',
+                        messageHistoryIndex: filteredMessages.length,
+                      }}
+                      toolCallNotifications={new Map()}
+                      append={() => {}} // Read-only for session history
+                      appendMessage={(newMessage) => {
+                        // Read-only - do nothing
+                        console.log(
+                          'appendMessage called in read-only session history:',
+                          newMessage
+                        );
+                      }}
+                      isUserMessage={isUserMessage} // Use the same function as BaseChat
+                      batchSize={15} // Same as BaseChat default
+                      batchDelay={30} // Same as BaseChat default
+                      showLoadingThreshold={30} // Same as BaseChat default
+                    />
+                  </SearchView>
+                </div>
+              </ContextManagerProvider>
+            </ChatProvider>
           ) : (
             <div className="flex flex-col items-center justify-center py-8 text-textSubtle">
               <MessageSquareText className="w-12 h-12 mb-4" />

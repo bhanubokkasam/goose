@@ -51,12 +51,8 @@ import LoadingGoose from './LoadingGoose';
 import RecipeActivities from './RecipeActivities';
 import PopularChatTopics from './PopularChatTopics';
 import ProgressiveMessageList from './ProgressiveMessageList';
-import { SessionSummaryModal } from './context_management/SessionSummaryModal';
-import {
-  ChatContextManagerProvider,
-  useChatContextManager,
-} from './context_management/ChatContextManager';
-import { View, ViewOptions } from '../utils/navigationUtils';
+import { ContextManagerProvider, useContextManager } from './context_management/ContextManager';
+import { type View, ViewOptions } from '../App';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
@@ -123,21 +119,12 @@ function BaseChatContent({
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
   const [currentRecipeTitle, setCurrentRecipeTitle] = React.useState<string | null>(null);
 
-  const {
-    summaryContent,
-    summarizedThread,
-    isSummaryModalOpen,
-    isLoadingCompaction,
-    resetMessagesWithSummary,
-    closeSummaryModal,
-    updateSummary,
-  } = useChatContextManager();
+  const { isCompacting } = useContextManager();
 
   // Use shared chat engine
   const {
     messages,
     filteredMessages,
-    ancestorMessages,
     setAncestorMessages,
     append,
     chatState,
@@ -242,7 +229,7 @@ function BaseChatContent({
   const { createNewSessionIfNeeded } = useSessionContinuation({
     chat,
     setChat,
-    summarizedThread,
+    summarizedThread: [],
     updateMessageStreamBody,
   });
 
@@ -265,7 +252,7 @@ function BaseChatContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array means this runs once on mount
 
-  // Handle submit with summary reset support
+  // Handle submit
   const handleSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
     const combinedTextFromInput = customEvent.detail?.value || '';
@@ -275,39 +262,16 @@ function BaseChatContent({
       setHasStartedUsingRecipe(true);
     }
 
-    const onSummaryReset =
-      summarizedThread.length > 0
-        ? () => {
-            resetMessagesWithSummary(
-              messages,
-              setMessages,
-              ancestorMessages,
-              setAncestorMessages,
-              summaryContent
-            );
-          }
-        : undefined;
-
     // Call the callback if provided (for Hub to handle navigation)
     if (onMessageSubmit && combinedTextFromInput.trim()) {
       onMessageSubmit(combinedTextFromInput);
     }
 
-    engineHandleSubmit(combinedTextFromInput, onSummaryReset);
+    engineHandleSubmit(combinedTextFromInput);
 
     // Auto-scroll to bottom after submitting
-    if (onSummaryReset) {
-      // If we're resetting with summary, delay the scroll a bit more
-      setTimeout(() => {
-        if (scrollRef.current?.scrollToBottom) {
-          scrollRef.current.scrollToBottom();
-        }
-      }, 200);
-    } else {
-      // Immediate scroll for regular submit
-      if (scrollRef.current?.scrollToBottom) {
-        scrollRef.current.scrollToBottom();
-      }
+    if (scrollRef.current?.scrollToBottom) {
+      scrollRef.current.scrollToBottom();
     }
   };
 
@@ -519,7 +483,7 @@ function BaseChatContent({
           {chatState !== ChatState.Idle && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
               <LoadingGoose
-                message={isLoadingCompaction ? 'summarizing conversation…' : undefined}
+                message={isCompacting ? 'compacting conversation…' : undefined}
                 chatState={chatState}
               />
             </div>
@@ -553,16 +517,6 @@ function BaseChatContent({
           />
         </div>
       </MainPanelLayout>
-
-      <SessionSummaryModal
-        isOpen={isSummaryModalOpen}
-        onClose={closeSummaryModal}
-        onSave={(editedContent) => {
-          updateSummary(editedContent);
-          closeSummaryModal();
-        }}
-        summaryContent={summaryContent}
-      />
 
       {/* Recipe Warning Modal */}
       <RecipeWarningModal
@@ -603,14 +557,16 @@ function BaseChatContent({
           </div>
         </div>
       )}
+
+      {/* No modals needed for the new simplified context manager */}
     </div>
   );
 }
 
 export default function BaseChat(props: BaseChatProps) {
   return (
-    <ChatContextManagerProvider>
+    <ContextManagerProvider>
       <BaseChatContent {...props} />
-    </ChatContextManagerProvider>
+    </ContextManagerProvider>
   );
 }

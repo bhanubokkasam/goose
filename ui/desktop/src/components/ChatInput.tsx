@@ -21,7 +21,7 @@ import { WaveformVisualizer } from './WaveformVisualizer';
 import { toastError } from '../toasts';
 import MentionPopover, { FileItemWithMatch } from './MentionPopover';
 import { useDictationSettings } from '../hooks/useDictationSettings';
-import { useChatContextManager } from './context_management/ChatContextManager';
+import { useContextManager } from './context_management/ContextManager';
 import { useChatContext } from '../contexts/ChatContext';
 import { COST_TRACKING_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
@@ -110,7 +110,7 @@ export default function ChatInput({
     null
   ) as React.RefObject<HTMLDivElement>;
   const toolCount = useToolCount();
-  const { isLoadingCompaction, handleManualCompaction } = useChatContextManager();
+  const { isCompacting, handleManualCompaction } = useContextManager();
   const { getProviders, read } = useConfig();
   const { getCurrentModelAndProvider, currentModel, currentProvider } = useModelAndProvider();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
@@ -855,7 +855,7 @@ export default function ChatInput({
       evt.preventDefault();
       const canSubmit =
         !isLoading &&
-        !isLoadingCompaction &&
+        !isCompacting &&
         (displayValue.trim() ||
           pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
           allDroppedFiles.some((file) => !file.error && !file.isLoading));
@@ -869,7 +869,7 @@ export default function ChatInput({
     e.preventDefault();
     const canSubmit =
       !isLoading &&
-      !isLoadingCompaction &&
+      !isCompacting &&
       (displayValue.trim() ||
         pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
         allDroppedFiles.some((file) => !file.error && !file.isLoading));
@@ -1061,7 +1061,7 @@ export default function ChatInput({
                 isAnyDroppedFileLoading ||
                 isRecording ||
                 isTranscribing ||
-                isLoadingCompaction
+                isCompacting
               }
               className={`rounded-full px-10 py-2 flex items-center gap-2 ${
                 !hasSubmittableContent ||
@@ -1069,13 +1069,13 @@ export default function ChatInput({
                 isAnyDroppedFileLoading ||
                 isRecording ||
                 isTranscribing ||
-                isLoadingCompaction
+                isCompacting
                   ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
                   : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
               }`}
               title={
-                isLoadingCompaction
-                  ? 'Summarizing conversation...'
+                isCompacting
+                  ? 'Compacting conversation...'
                   : isAnyImageLoading
                     ? 'Waiting for images to save...'
                     : isAnyDroppedFileLoading
