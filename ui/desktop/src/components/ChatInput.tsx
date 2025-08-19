@@ -42,7 +42,6 @@ const MAX_IMAGE_SIZE_MB = 5;
 
 // Constants for token and tool alerts
 const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backend doesn't know about
-const TOKEN_WARNING_THRESHOLD = 0.8; // warning shows at 80% of the token limit
 const TOOLS_MAX_SUGGESTED = 60; // max number of tools before we show a warning
 
 interface ModelLimit {
@@ -404,57 +403,19 @@ export default function ChatInput({
   useEffect(() => {
     clearAlerts();
 
-    // Always show token alerts if we have loaded the real token limit and have tokens
-    if (isTokenLimitLoaded && tokenLimit && numTokens && numTokens > 0) {
-      if (numTokens >= tokenLimit) {
-        // Only show error alert when limit reached
-        addAlert({
-          type: AlertType.Error,
-          message: `Token limit reached (${numTokens.toLocaleString()}/${tokenLimit.toLocaleString()}) \n You've reached the model's conversation limit. The session will be saved — copy anything important and start a new one to continue.`,
-          autoShow: true, // Auto-show token limit errors
-        });
-      } else if (numTokens >= tokenLimit * TOKEN_WARNING_THRESHOLD) {
-        // Only show warning alert when approaching limit
-        addAlert({
-          type: AlertType.Warning,
-          message: `Approaching token limit (${numTokens.toLocaleString()}/${tokenLimit.toLocaleString()}) \n You're reaching the model's conversation limit. Consider compacting the conversation to continue.`,
-          autoShow: true, // Auto-show token limit warnings
-        });
-      } else {
-        // Show info alert with summarize button
-        addAlert({
-          type: AlertType.Info,
-          message: 'Context window',
-          progress: {
-            current: numTokens,
-            total: tokenLimit,
-          },
-          showSummarizeButton: true,
-          onSummarize: () => {
-            handleManualCompaction(messages, setMessages);
-          },
-          summarizeIcon: <ScrollText size={12} />,
-        });
-      }
-    } else if (isTokenLimitLoaded && tokenLimit) {
-      // Always show context window info even when no tokens are present (start of conversation)
-      addAlert({
-        type: AlertType.Info,
-        message: 'Context window',
-        progress: {
-          current: 0,
-          total: tokenLimit,
-        },
-        showSummarizeButton: messages.length > 0,
-        onSummarize:
-          messages.length > 0
-            ? () => {
-                handleManualCompaction(messages, setMessages);
-              }
-            : undefined,
-        summarizeIcon: messages.length > 0 ? <ScrollText size={12} /> : undefined,
-      });
-    }
+    addAlert({
+      type: AlertType.Info,
+      message: 'Context window',
+      progress: {
+        current: numTokens || 0,
+        total: tokenLimit,
+      },
+      showCompactButton: true,
+      onCompact: () => {
+        handleManualCompaction(messages, setMessages);
+      },
+      compactIcon: <ScrollText size={12} />,
+    });
 
     // Add tool count alert if we have the data
     if (toolCount !== null && toolCount > TOOLS_MAX_SUGGESTED) {
