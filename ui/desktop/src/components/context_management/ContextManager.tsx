@@ -12,13 +12,15 @@ interface ContextManagerActions {
   handleAutoCompaction: (
     messages: Message[],
     setMessages: (messages: Message[]) => void,
-    append: (message: Message) => void
+    append: (message: Message) => void,
+    setAncestorMessages?: (messages: Message[]) => void
   ) => Promise<void>;
   handleManualCompaction: (
     messages: Message[],
     setMessages: (messages: Message[]) => void,
     append?: (message: Message) => void,
-    clearAlerts?: () => void
+    clearAlerts?: () => void,
+    setAncestorMessages?: (messages: Message[]) => void
   ) => Promise<void>;
   hasCompactionMarker: (message: Message) => boolean;
 }
@@ -38,33 +40,14 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
       messages: Message[],
       setMessages: (messages: Message[]) => void,
       append: (message: Message) => void,
-      isManual: boolean = false
+      _isManual: boolean = false,
+      setAncestorMessages?: (messages: Message[]) => void
     ) => {
       setIsCompacting(true);
       setCompactionError(null);
 
       try {
-        // Add a compaction marker message to show in the chat
-        const compactionMarker: Message = {
-          id: `compaction-marker-${Date.now()}`,
-          role: 'assistant',
-          created: Math.floor(Date.now() / 1000),
-          content: [
-            {
-              type: 'compactionMarker',
-              msg: isManual
-                ? 'Compacting conversation...'
-                : 'Context limit reached. Compacting conversation...',
-            },
-          ],
-          display: true,
-          sendToLLM: false,
-        };
-
-        // Add the marker to the messages
-        setMessages([...messages, compactionMarker]);
-
-        // Get the summary from the backend
+        // Get the summary from the backend without showing any marker during compaction
         const summaryResponse = await manageContextFromBackend({
           messages: messages,
           manageAction: 'summarize',
@@ -82,19 +65,33 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
           summaryMessage.content[0] &&
           summaryMessage.content[0].type === 'text'
         ) {
-          // Update the compaction marker to show completion
-          const completedMarker: Message = {
-            ...compactionMarker,
+          // Create a compaction marker to show where compaction occurred
+          const compactionMarker: Message = {
+            id: `compaction-marker-${Date.now()}`,
+            role: 'assistant',
+            created: Math.floor(Date.now() / 1000),
             content: [
               {
                 type: 'compactionMarker',
-                msg: 'Conversation compacted. Continuing from summary',
+                msg: 'Conversation compacted and summarized',
               },
             ],
+            display: true,
+            sendToLLM: false,
           };
 
-          // Replace messages with just the completed marker and summary
-          setMessages([completedMarker, summaryMessage]);
+          // Store the original messages as ancestor messages so they can still be scrolled to
+          if (setAncestorMessages) {
+            const ancestorMessages = messages.map((msg) => ({
+              ...msg,
+              display: true,
+              sendToLLM: false,
+            }));
+            setAncestorMessages(ancestorMessages);
+          }
+
+          // Replace messages with the marker and summary
+          setMessages([compactionMarker, summaryMessage]);
 
           // Automatically submit the summary message to continue the conversation
           setTimeout(() => {
@@ -133,9 +130,10 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
     async (
       messages: Message[],
       setMessages: (messages: Message[]) => void,
-      append: (message: Message) => void
+      append: (message: Message) => void,
+      setAncestorMessages?: (messages: Message[]) => void
     ) => {
-      await performCompaction(messages, setMessages, append, false);
+      await performCompaction(messages, setMessages, append, false, setAncestorMessages);
     },
     [performCompaction]
   );
@@ -145,14 +143,21 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
       messages: Message[],
       setMessages: (messages: Message[]) => void,
       append?: (message: Message) => void,
-      clearAlerts?: () => void
+      clearAlerts?: () => void,
+      setAncestorMessages?: (messages: Message[]) => void
     ) => {
       // Hide the alert box when compaction starts
       if (clearAlerts) {
         clearAlerts();
       }
 
-      await performCompaction(messages, setMessages, append || (() => {}), true);
+      await performCompaction(
+        messages,
+        setMessages,
+        append || (() => {}),
+        true,
+        setAncestorMessages
+      );
     },
     [performCompaction]
   );

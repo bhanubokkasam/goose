@@ -76,6 +76,7 @@ interface ChatInputProps {
   recipeAccepted?: boolean;
   initialPrompt?: string;
   append?: (message: Message) => void;
+  setAncestorMessages?: (messages: Message[]) => void;
 }
 
 export default function ChatInput({
@@ -99,6 +100,7 @@ export default function ChatInput({
   recipeAccepted,
   initialPrompt,
   append,
+  setAncestorMessages,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -414,7 +416,7 @@ export default function ChatInput({
       },
       showCompactButton: true,
       onCompact: () => {
-        handleManualCompaction(messages, setMessages, append, clearAlerts);
+        handleManualCompaction(messages, setMessages, append, clearAlerts, setAncestorMessages);
       },
       compactIcon: <ScrollText size={12} />,
     });

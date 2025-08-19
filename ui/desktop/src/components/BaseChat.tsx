@@ -480,10 +480,10 @@ function BaseChatContent({
           </ScrollArea>
 
           {/* Fixed loading indicator at bottom left of chat container */}
-          {chatState !== ChatState.Idle && (
+          {(chatState !== ChatState.Idle || isCompacting) && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
               <LoadingGoose
-                message={isCompacting ? 'compacting conversation…' : undefined}
+                message={isCompacting ? 'goose is compacting the conversation...' : undefined}
                 chatState={chatState}
               />
             </div>
@@ -513,6 +513,7 @@ function BaseChatContent({
             recipeConfig={recipeConfig}
             recipeAccepted={recipeAccepted}
             initialPrompt={initialPrompt}
+            setAncestorMessages={setAncestorMessages}
             append={append}
             {...customChatInputProps}
           />
