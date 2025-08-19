@@ -274,7 +274,7 @@ impl Agent {
         }
     }
 
-    async fn handle_approved_and_denied_tools_with_session(
+    async fn handle_approved_and_denied_tools(
         &self,
         permission_check_result: &PermissionCheckResult,
         message_tool_response: Arc<Mutex<Message>>,
@@ -286,20 +286,14 @@ impl Agent {
         // Handle pre-approved and read-only tools
         for request in &permission_check_result.approved {
             if let Ok(tool_call) = request.tool_call.clone() {
-                let (req_id, tool_result) = if tool_call.name == TODO_READ_TOOL_NAME
-                    || tool_call.name == TODO_WRITE_TOOL_NAME
-                {
-                    // Handle TODO tools with session context
-                    self.dispatch_todo_tool_with_session_internal(
+                let (req_id, tool_result) = self
+                    .dispatch_tool_call(
                         tool_call,
                         request.id.clone(),
+                        cancel_token.clone(),
                         session,
                     )
-                    .await
-                } else {
-                    self.dispatch_tool_call(tool_call, request.id.clone(), cancel_token.clone())
-                        .await
-                };
+                    .await;
 
                 tool_futures.push((
                     req_id,
@@ -371,161 +365,6 @@ impl Agent {
         sub_recipe_manager.add_sub_recipe_tools(sub_recipes);
     }
 
-    /// Dispatch TODO tool calls with session context
-    #[cfg(test)]
-    pub async fn dispatch_todo_tool_with_session(
-        &self,
-        tool_call: mcp_core::tool::ToolCall,
-        request_id: String,
-        session: &Option<SessionConfig>,
-    ) -> (String, Result<ToolCallResult, ErrorData>) {
-        self.dispatch_todo_tool_with_session_internal(tool_call, request_id, session)
-            .await
-    }
-
-    #[allow(clippy::too_many_lines)]
-    async fn dispatch_todo_tool_with_session_internal(
-        &self,
-        tool_call: mcp_core::tool::ToolCall,
-        request_id: String,
-        session: &Option<SessionConfig>,
-    ) -> (String, Result<ToolCallResult, ErrorData>) {
-        // Get session file path if we have a session
-        let session_file_path = if let Some(session_config) = session {
-            match session::storage::get_path(session_config.id.clone()) {
-                Ok(path) => Some(path),
-                Err(e) => {
-                    return (
-                        request_id,
-                        Err(ErrorData::new(
-                            ErrorCode::INTERNAL_ERROR,
-                            format!("Failed to get session path: {}", e),
-                            None,
-                        )),
-                    );
-                }
-            }
-        } else {
-            None
-        };
-
-        if tool_call.name == TODO_READ_TOOL_NAME {
-            // Read TODO content from session metadata
-            let todo_content = if let Some(path) = session_file_path {
-                match session::storage::read_metadata(&path) {
-                    Ok(metadata) => metadata.todo_content.unwrap_or_default(),
-                    Err(_) => String::new(),
-                }
-            } else {
-                String::new()
-            };
-
-            (
-                request_id,
-                Ok(ToolCallResult::from(Ok(vec![Content::text(todo_content)]))),
-            )
-        } else if tool_call.name == TODO_WRITE_TOOL_NAME {
-            // Write TODO content to session metadata
-            let content = tool_call
-                .arguments
-                .get("content")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-
-            // Character limit validation
-            let char_count = content.chars().count();
-            let max_chars = std::env::var("GOOSE_TODO_MAX_CHARS")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(50_000);
-
-            // Simple validation - reject if over limit (0 means unlimited)
-            if max_chars > 0 && char_count > max_chars {
-                return (
-                    request_id,
-                    Err(ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!(
-                            "Todo list too large: {} chars (max: {})",
-                            char_count, max_chars
-                        ),
-                        None,
-                    )),
-                );
-            }
-
-            // Update session metadata with new TODO content
-            if let Some(path) = session_file_path {
-                match session::storage::read_metadata(&path) {
-                    Ok(mut metadata) => {
-                        metadata.todo_content = Some(content);
-                        // Use tokio::task::spawn_blocking for the async update_metadata call
-                        let path_clone = path.clone();
-                        let metadata_clone = metadata.clone();
-                        let update_result = tokio::task::spawn(async move {
-                            session::storage::update_metadata(&path_clone, &metadata_clone).await
-                        })
-                        .await;
-
-                        match update_result {
-                            Ok(Ok(_)) => (
-                                request_id,
-                                Ok(ToolCallResult::from(Ok(vec![Content::text(format!(
-                                    "Updated ({} chars)",
-                                    char_count
-                                ))]))),
-                            ),
-                            Ok(Err(e)) => (
-                                request_id,
-                                Err(ErrorData::new(
-                                    ErrorCode::INTERNAL_ERROR,
-                                    format!("Failed to update session metadata: {}", e),
-                                    None,
-                                )),
-                            ),
-                            Err(e) => (
-                                request_id,
-                                Err(ErrorData::new(
-                                    ErrorCode::INTERNAL_ERROR,
-                                    format!("Failed to spawn update task: {}", e),
-                                    None,
-                                )),
-                            ),
-                        }
-                    }
-                    Err(e) => (
-                        request_id,
-                        Err(ErrorData::new(
-                            ErrorCode::INTERNAL_ERROR,
-                            format!("Failed to read session metadata: {}", e),
-                            None,
-                        )),
-                    ),
-                }
-            } else {
-                // No session context, can't persist TODO
-                (
-                    request_id,
-                    Err(ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        "TODO tools require an active session to persist data".to_string(),
-                        None,
-                    )),
-                )
-            }
-        } else {
-            (
-                request_id,
-                Err(ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Unknown TODO tool: {}", tool_call.name),
-                    None,
-                )),
-            )
-        }
-    }
-
     /// Dispatch a single tool call to the appropriate client
     #[instrument(skip(self, tool_call, request_id), fields(input, output))]
     pub async fn dispatch_tool_call(
@@ -533,6 +372,7 @@ impl Agent {
         tool_call: mcp_core::tool::ToolCall,
         request_id: String,
         cancellation_token: Option<CancellationToken>,
+        session: &Option<SessionConfig>,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
         // Check if this tool call should be allowed based on repetition monitoring
         if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
@@ -646,20 +486,91 @@ impl Agent {
             )))
         } else if tool_call.name == TODO_READ_TOOL_NAME {
             // Handle task planner read tool - session-scoped
-            // This tool is now handled in dispatch_tool_call_with_session
-            ToolCallResult::from(Err(ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                "TODO tools require session context".to_string(),
-                None,
-            )))
+            let session_file_path = if let Some(session_config) = session {
+                session::storage::get_path(session_config.id.clone()).ok()
+            } else {
+                None
+            };
+
+            let todo_content = if let Some(path) = session_file_path {
+                session::storage::read_metadata(&path)
+                    .ok()
+                    .and_then(|m| m.todo_content)
+                    .unwrap_or_default()
+            } else {
+                String::new()
+            };
+
+            ToolCallResult::from(Ok(vec![Content::text(todo_content)]))
         } else if tool_call.name == TODO_WRITE_TOOL_NAME {
             // Handle task planner write tool - session-scoped
-            // This tool is now handled in dispatch_tool_call_with_session
-            ToolCallResult::from(Err(ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                "TODO tools require session context".to_string(),
-                None,
-            )))
+            let content = tool_call
+                .arguments
+                .get("content")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            // Character limit validation
+            let char_count = content.chars().count();
+            let max_chars = std::env::var("GOOSE_TODO_MAX_CHARS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(50_000);
+
+            if max_chars > 0 && char_count > max_chars {
+                ToolCallResult::from(Err(ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!(
+                        "Todo list too large: {} chars (max: {})",
+                        char_count, max_chars
+                    ),
+                    None,
+                )))
+            } else if let Some(session_config) = session {
+                // Update session metadata with new TODO content
+                match session::storage::get_path(session_config.id.clone()) {
+                    Ok(path) => match session::storage::read_metadata(&path) {
+                        Ok(mut metadata) => {
+                            metadata.todo_content = Some(content);
+                            let path_clone = path.clone();
+                            let metadata_clone = metadata.clone();
+                            let update_result = tokio::task::spawn(async move {
+                                session::storage::update_metadata(&path_clone, &metadata_clone)
+                                    .await
+                            })
+                            .await;
+
+                            match update_result {
+                                Ok(Ok(_)) => ToolCallResult::from(Ok(vec![Content::text(
+                                    format!("Updated ({} chars)", char_count),
+                                )])),
+                                _ => ToolCallResult::from(Err(ErrorData::new(
+                                    ErrorCode::INTERNAL_ERROR,
+                                    "Failed to update session metadata".to_string(),
+                                    None,
+                                ))),
+                            }
+                        }
+                        Err(_) => ToolCallResult::from(Err(ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            "Failed to read session metadata".to_string(),
+                            None,
+                        ))),
+                    },
+                    Err(_) => ToolCallResult::from(Err(ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        "Failed to get session path".to_string(),
+                        None,
+                    ))),
+                }
+            } else {
+                ToolCallResult::from(Err(ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    "TODO tools require an active session to persist data".to_string(),
+                    None,
+                )))
+            }
         } else if tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME {
             match self
                 .tool_route_manager
@@ -1221,7 +1132,7 @@ impl Agent {
                                             self.provider().await?,
                                         ).await;
 
-                                    let mut tool_futures = self.handle_approved_and_denied_tools_with_session(
+                                    let mut tool_futures = self.handle_approved_and_denied_tools(
                                         &permission_check_result,
                                         message_tool_response.clone(),
                                         cancel_token.clone(),
