@@ -16,7 +16,9 @@ interface ContextManagerActions {
   ) => Promise<void>;
   handleManualCompaction: (
     messages: Message[],
-    setMessages: (messages: Message[]) => void
+    setMessages: (messages: Message[]) => void,
+    append?: (message: Message) => void,
+    clearAlerts?: () => void
   ) => Promise<void>;
   hasCompactionMarker: (message: Message) => boolean;
 }
@@ -86,7 +88,7 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
             content: [
               {
                 type: 'compactionMarker',
-                msg: 'Conversation compacted. Summary prepared to continue.',
+                msg: 'Conversation compacted: Summary prepared to continue',
               },
             ],
           };
@@ -139,8 +141,18 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
   );
 
   const handleManualCompaction = useCallback(
-    async (messages: Message[], setMessages: (messages: Message[]) => void) => {
-      await performCompaction(messages, setMessages, () => {}, true);
+    async (
+      messages: Message[],
+      setMessages: (messages: Message[]) => void,
+      append?: (message: Message) => void,
+      clearAlerts?: () => void
+    ) => {
+      // Hide the alert box when compaction starts
+      if (clearAlerts) {
+        clearAlerts();
+      }
+
+      await performCompaction(messages, setMessages, append || (() => {}), true);
     },
     [performCompaction]
   );

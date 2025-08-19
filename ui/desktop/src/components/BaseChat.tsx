@@ -513,6 +513,7 @@ function BaseChatContent({
             recipeConfig={recipeConfig}
             recipeAccepted={recipeAccepted}
             initialPrompt={initialPrompt}
+            append={append}
             {...customChatInputProps}
           />
         </div>
