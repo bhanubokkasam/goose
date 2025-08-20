@@ -241,7 +241,6 @@ export default function ProgressiveMessageList({
     isStreamingMessage,
     onMessageUpdate,
     hasCompactionMarker,
-    onScrollToBottom,
   ]);
 
   return (
